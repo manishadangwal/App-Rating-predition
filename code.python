@@ -1,0 +1,289 @@
+# App Rating Prediction
+ # importing all required libraries.
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+%matplotlib inline
+import seaborn as sns
+
+#Load the data file "googleplaystore.csv" using pandas.
+data=pd.read_csv('googleplaystore.csv')
+data.head(10)
+
+# Finding shape of data set
+data.shape
+
+# Check for null values in the data by using data.isna().sum() function and Get the number of null values for each column.
+data.isna().sum()
+
+# Drop records with nulls in any of the columns using dropna() function.
+
+df=data.dropna()
+
+# In Size column before converting all values from Mb to Kb we have to deleting all records with values as “1,000+” and “Varies with device”. Here insted of using drop function i am using use indexing with conditions.
+
+df1=df[~((df.Size=='1,000+')|(df.Size=='Varies with device'))]
+df1
+
+# Making a new column of Size as SizeNum which have no M&K after numbers
+
+df1.loc[:,'SizeNum']=df1.Size.str.rstrip('Mk+')
+
+# Converting data type of SizeNum in numeric data type
+
+df1.SizeNum=pd.to_numeric(df1['SizeNum'])
+
+# Now convering all Mb into Kb by Multiply the value by 1,000, if size is mentioned in Mb.
+
+df1['SizeNum']=np.where(df1.Size.str.contains('M'),df1.SizeNum*1000, df1.SizeNum)
+
+# Now assign SizeNum values in Size column and drop SizeNum column from the dataset.
+
+df1.Size=df1.SizeNum
+df1.drop('SizeNum',inplace=True,axis=1)
+
+# Reviews (column) is a numeric field that is loaded as a string field. Convert it to numeric (int/float) by using pd.to_numeric(data_name)
+
+df1.Reviews=pd.to_numeric(df1['Reviews'])
+df1.Reviews.dtypes
+
+# The Installs field is currently stored as string and has values like 1,000,000+ because commas and + are not interpreted as numeric format, hence these are imported as text/string for the Installs variable for that reason we have to remove ‘+’ AND ‘,’ etc., from the field
+
+df1.Installs=df1.Installs.str.replace("+","")
+df1.Installs=df1.Installs.str.replace(",","")
+
+# After treating '+' and ',' we have to change this Installs data type into numeric data type
+
+df1.Installs=pd.to_numeric(df1['Installs'])
+df1.Installs.dtypes
+
+# Replacing $ symbol.
+
+df1.Price=df1.Price.str.replace("$","")
+df1.Price=pd.to_numeric(df1['Price'])
+df1.Price.dtype
+df1.shape
+
+# Average rating should be between 1 and 5 as only these values are allowed on the play store.So we are using here indexing with conditions.
+
+df2=df1[(df1.Rating<5)]
+df2=df2[(df2.Rating>1)]
+
+# Reviews should not be more than installs as only those who installed can review the app.So that is why we using here indexing with conditional method
+
+df2=df2[(df2.Reviews<df2.Installs)]
+
+# For free apps (type = “Free”), the price should not be >0. First we have check in how many rows are present in data which is ounder the condition of apps (type = “Free”), the price should not be >0 by using indexing with condition method
+
+df2[(df2.Type=='Free')&(df2.Price>0)]
+
+# After applying indexing with conditional method we get there is no such rows who has apps (type = “Free”), the price should not be >0.
+
+# Performing univariate analysis
+
+plt.boxplot(df2.Price)
+plt.title('Boxplot for app Prices')
+plt.ylabel('# Price of App')
+
+# boxplot for Reviews column
+plt.boxplot(df2['Reviews'])
+plt.title("boxplot for Reviews column")
+plt.ylabel('Reviews of App')
+
+# Histogram for Rating
+plt.hist(df2.Rating,bins=10,histtype='bar')
+plt.title('Histogram for Rating')
+plt.xlabel('Rating of App')
+plt.ylabel('# Fequency')
+
+# Histogram for Size
+plt.hist(df2.Size,bins=10,histtype='bar')
+plt.title('Histogram for Size')
+plt.xlabel('Size of App')
+plt.ylabel('# Fequency')
+
+# Outlier treatment
+q1,q3=np.percentile(df2.Price,[25,75])
+IQR=q3-q1
+IQR
+
+# From the box plot, it seems like there are some apps with very high price. And these price of $200 and greater for an application on the Play Store is very high and suspicious So we drop these as most seem to be junk apps. By the indexing with conditional methods.
+df2=df2[df2.Price<200]
+df2
+
+# Very few apps have very high number of reviews. These are all star apps that don’t help with the analysis and, in fact, will skew it.So we have to drop such records having more than 2 million reviews.
+
+df2=df2[df2.Reviews<2000000]
+df2
+
+# Find out the different percentiles – 10, 25, 50, 70, 90, 95, 99
+
+p10=np.percentile(df2.Installs,10)
+Q1=np.percentile(df2.Installs,25)
+p50=np.percentile(df2.Installs,50)
+p70=np.percentile(df2.Installs,70)
+Q3=np.percentile(df2.Installs,75)
+p90=np.percentile(df2.Installs,90)
+p95=np.percentile(df2.Installs,95)
+p99=np.percentile(df2.Installs,99)
+print(p10)
+print(Q1)
+print(Q3)
+print(p50)
+print(p70)
+print(p90)
+print(p95)
+print(p99)
+
+IQR=Q3=Q1
+IQR
+L=Q1-1.5*IQR
+L
+U=Q3+1.5*IQR
+U
+
+# Here upper limit value is 25000 this is our threshold as cutoff for outlier and we have to drop records having values more than that,By using indexing with conditional method
+
+df2=df2[(df2.Installs<25000)]
+df2
+
+# scatter plot/joinplot for Rating vs. Size
+
+sns.scatterplot(y=df2.Rating,x=df2.Size)
+plt.title("scatter plot for Rating vs. Size")
+plt.xlabel('Size of App')
+plt.ylabel('Rating for App')
+
+# join plot
+sns.jointplot(y=df2.Rating,x=df2.Size)
+plt.title("joint plot for Rating vs. Size")
+plt.xlabel('Size of App')
+plt.ylabel('Rating for App')
+
+# scatter plot/joinplot for Rating vs. Reviews
+
+sns.scatterplot(x=df2.Reviews,y=df2.Rating)
+plt.title('scatter plot for Rating vs. Reviews')
+plt.xlabel('Reviews for App')
+plt.ylabel('Rating for App')
+
+# join plot
+
+scatter plot/joinplot for Rating vs. Reviews
+
+sns.scatterplot(x=df2.Reviews,y=df2.Rating)
+plt.title('scatter plot for Rating vs. Reviews')
+plt.xlabel('Reviews for App')
+plt.ylabel('Rating for App')
+
+# scatter plot/joinplot for Rating vs. Price
+
+sns.scatterplot(x=df2.Price,y=df2.Rating)
+plt.title("scatter plot for Rating vs. Price")
+plt.xlabel('Price of app')
+plt.ylabel('Rating of app')
+
+# join plot
+
+sns.jointplot(x=df2.Price,y=df2.Rating)
+plt.title("joint plot for Rating vs. Price")
+plt.xlabel('Price of app')
+plt.ylabel('Rating of app')
+
+# boxplot for Rating vs. Content Rating
+
+plt.figure(figsize=(11,21))
+sns.boxplot(x=df2['Content Rating'],y=df2.Rating)
+plt.title('Boxplot for Rating vs. Content Rating')
+plt.xlabel('#content rating for app')
+plt.ylabel('#Rating for app')
+
+# boxplot for Ratings vs. Category
+
+plt.figure(figsize=(10,15))
+sns.boxplot(x=df2.Category,y=df2.Rating)
+plt.title('boxplot for Ratings vs. Category')
+plt.xlabel('Categories')
+plt.ylabel('rating for app')
+plt.xticks(rotation=70,fontsize=15
+
+# copy of the dataframe to make all the edits. Name it inp1.
+
+inp1=pd.DataFrame(df2)
+inp1.shape
+
+# Reviews and Install have some values that are still relatively very high. Before building a linear regression model, we need to reduce the skew.So we have Apply log transformation (np.log1p) to Reviews and Installs
+
+inp1['Reviews']=np.log1p(inp1.Reviews)
+inp1['Installs']=np.log1p(inp1.Installs)
+
+# Drop columns App, Last Updated, Current Ver, and Android Ver.Because these variables are not useful for our task.
+
+inp2=inp1.drop(['App','Last Updated','Current Ver','Android Ver'],axis=1)
+inp2
+
+# We have also check for finite value in this data
+
+np.isfinite(inp2.all())
+
+# Get dummy columns for Category, Genres,Type, and Content Rating. This needs to be done as the models do not understand categorical data, and all data should be numeric. we have to use LabelEncoder and the name of dataframe should be inp2.
+
+from sklearn.preprocessing import LabelEncoder
+
+lr=LabelEncoder()
+inp2['Category']=pd.DataFrame(lr.fit_transform(inp2['Category']))
+inp2['Genres']=pd.DataFrame(lr.fit_transform(inp2['Genres']))
+inp2['Content Rating']=pd.DataFrame(lr.fit_transform(inp2['Content Rating']))
+inp2['Type']=pd.DataFrame(lr.fit_transform(inp2['Type']))
+inp2.info()
+
+
+# Divided data into independent and dependent variable
+
+x=inp2.drop(['Rating'],axis=1)
+y=inp2['Rating']
+
+# Using Train test split and apply 70-30 split.
+
+from sklearn.model_selection import train_test_split
+x_train,x_test,y_train,y_test=train_test_split(x,y,test_size=0.3)
+
+# For reducing infinite data and null values
+
+x_train =x_train.replace((np.inf, -np.inf, np.nan), 0).reset_index(drop=True)
+x_test=x_test.replace((np.inf,-np.inf,np.nan),0).reset_index(drop=True)
+
+# Defined the shape of train and test data
+
+print(x_train.shape)
+print(x_test.shape)
+print(y_train.shape)
+print(y_test.shape)
+
+
+# Model building
+
+# Using linear regression as the technique
+
+from sklearn.linear_model import LinearRegression
+lr=LinearRegression()
+# Fitting the train data
+
+x=lr.fit(x_train,y_train)
+x.coef_
+
+x.intercept_
+
+# Make predictions on test set
+pred=pd.DataFrame(lr.predict(x_test),columns=['predicted_value'])
+pred
+
+ # concat the actual and predicted data
+
+concat_data=pd.concat([x_test.reset_index(drop=True),y_test.reset_index(drop=True),pred],axis=1)
+concat_data
+
+ # Finding R2 values
+
+from sklearn.metrics import r2_score
+r2_score(concat_data.Rating,concat_data.predicted_value)
